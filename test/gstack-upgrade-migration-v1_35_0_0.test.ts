@@ -1,5 +1,5 @@
 /**
- * Unit tests for gstack-upgrade/migrations/v1.34.0.0.sh — split-engine notice.
+ * Unit tests for gstack-upgrade/migrations/v1.35.0.0.sh — split-engine notice.
  *
  * Per plan D5: print a one-time discoverability notice for existing Path 4
  * (remote-http MCP) users who don't yet have a local engine, so they
@@ -31,7 +31,7 @@ const MIGRATION = join(
   "..",
   "gstack-upgrade",
   "migrations",
-  "v1.34.0.0.sh",
+  "v1.35.0.0.sh",
 );
 
 interface MigEnv {
@@ -100,7 +100,7 @@ exit 0
     tmp,
     home,
     gstackHome,
-    doneTouch: join(gstackHome, ".migrations", "v1.34.0.0.done"),
+    doneTouch: join(gstackHome, ".migrations", "v1.35.0.0.done"),
     claudeJson,
     gbrainConfig,
     configBin,
@@ -127,7 +127,7 @@ function runMigration(env: MigEnv): { stdout: string; stderr: string; exitCode: 
   };
 }
 
-describe("gstack-upgrade/migrations/v1.34.0.0.sh", () => {
+describe("gstack-upgrade/migrations/v1.35.0.0.sh", () => {
   it("STATE MATCH: remote-http MCP + no local config → notice printed, touchfile written", () => {
     const env = makeEnv({ remoteHttpMcp: true, hasLocalConfig: false });
     try {
