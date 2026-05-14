@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Migration: v1.35.0.0 — split-engine gbrain (remote MCP brain + optional
+# Migration: v1.37.0.0 — split-engine gbrain (remote MCP brain + optional
 #   local PGLite for code search per worktree).
 #
 # Per plan D5: prints a ONE-TIME discoverability notice for existing
@@ -17,20 +17,20 @@
 # When silent: anything else (Path 1/2/3 users, anyone already on PGLite,
 # anyone who opted out, anyone without remote-http MCP).
 #
-# Idempotency: writes a touchfile at ~/.gstack/.migrations/v1.35.0.0.done
+# Idempotency: writes a touchfile at ~/.gstack/.migrations/v1.37.0.0.done
 # on completion. Re-running this script is silent if the touchfile exists,
 # OR if local_code_index_offered=true.
 
 set -euo pipefail
 
 if [ -z "${HOME:-}" ]; then
-  echo "  [v1.35.0.0] HOME is unset — skipping migration." >&2
+  echo "  [v1.37.0.0] HOME is unset — skipping migration." >&2
   exit 0
 fi
 
 GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
 MIGRATIONS_DIR="$GSTACK_HOME/.migrations"
-DONE_TOUCH="$MIGRATIONS_DIR/v1.35.0.0.done"
+DONE_TOUCH="$MIGRATIONS_DIR/v1.37.0.0.done"
 CONFIG_BIN="$HOME/.claude/skills/gstack/bin/gstack-config"
 CLAUDE_JSON="$HOME/.claude.json"
 GBRAIN_CONFIG="$HOME/.gbrain/config.json"
@@ -73,7 +73,7 @@ if is_remote_http_mcp && is_local_engine_missing; then
   cat <<'NOTICE'
 
   ┌──────────────────────────────────────────────────────────────────┐
-  │  gstack v1.35.0.0 — split-engine gbrain                          │
+  │  gstack v1.37.0.0 — split-engine gbrain                          │
   │                                                                  │
   │  Symbol-aware code search is now available on this machine.      │
   │  Your remote brain at gbrain MCP keeps working as today; you can │
