@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.40.0.1] - 2026-05-19
+
+## **Headed Chromium launches stop shipping `--no-sandbox` to the browser on macOS and Linux.**
+## **Yellow "unsupported command-line flag" infobar disappears for every dev who runs browse headed.**
+
+`launchPersistentContext()` was missing the `chromiumSandbox` option, so Playwright's chromium launcher auto-added `--no-sandbox` on every headed launch (logic at `playwright-core/lib/server/chromium/chromium.js:291-292`: when `chromiumSandbox !== true`, push `--no-sandbox`). The headless `chromium.launch()` site set the option correctly; the two headed sites (`launchHeaded()` and `handoff()`) did not. Result: anyone running browse headed saw Chromium's bad-flags yellow infobar across the top of every tab. v1.40.0.1 introduces a shared `shouldEnableChromiumSandbox()` policy used by all three launch sites and pins it with unit tests so this can't regress silently.
+
+### The numbers that matter
+
+Source: `bun test browse/test/browser-manager-unit.test.ts` ... 8 tests, all green.
+
+| Surface | Before | After |
+|---|---|---|
+| macOS dev, `bun run dev` headed (or `launchHeaded`) | Yellow `--no-sandbox` infobar on every launch | No infobar |
+| Linux non-root, non-CI dev, headed launch | Yellow `--no-sandbox` infobar on every launch | No infobar |
+| Linux root / Docker / CI headed launch | `--no-sandbox` reaches Chromium (correct), no infobar (acceptable since usually headless) | Same; sandbox correctly off |
+| Windows headed launch | Sandbox off (GitHub #276 Bun→Node chain) | Same; explicitly preserved by helper |
+| `handoff()` (headless→headed re-launch) | Yellow infobar same as `launchHeaded` | No infobar |
+
+### What this means for builders
+
+If you run `browse` headed on macOS or Linux dev, the yellow "unsupported command-line flag: --no-sandbox" warning is gone. Container, root, and CI environments still get sandbox off (correct, the kernel can't engage it there). The fix is one helper plus three single-line additions, pinned by `shouldEnableChromiumSandbox` unit tests so a future refactor can't silently regress the behavior. Pull and your next headed launch is clean.
+
+### Itemized changes
+
+#### Fixed
+
+- `browse/src/browser-manager.ts` ... `launchPersistentContext()` calls in `launchHeaded()` and `handoff()` now pass `chromiumSandbox`, so Playwright stops auto-adding `--no-sandbox` on every headed launch. Headless `launch()` switches to the same helper for consistency.
+
+#### Added
+
+- `browse/src/browser-manager.ts` (new export) ... `shouldEnableChromiumSandbox()` centralizes the Win32 / CI / CONTAINER / root heuristic that previously lived only in the headless path's explicit `--no-sandbox` push.
+- `browse/test/browser-manager-unit.test.ts` ... six unit tests pinning `shouldEnableChromiumSandbox` across darwin, linux, win32, CI, CONTAINER, and root.
+
 ## [1.40.0.0] - 2026-05-16
 
 ## **gbrain sync stops biting users across the install path, slug algorithm, federation queue, and `.env.local` footgun.**
