@@ -60,13 +60,19 @@ fi
 #
 # Workspace/dev setup MUST be non-interactive: Conductor runs this under a
 # forwarded pty, so any `read` in setup (skill-prefix prompt, plan-tune hook
-# consent) would hang the workspace forever. Detaching stdin makes every
-# setup prompt take its smart non-interactive default (flat skill names; skip
-# the global plan-tune hook install without writing a decline marker, so a
-# later hands-on `./setup` can still offer it). A dev workspace should never
-# silently mutate ~/.claude/settings.json — pass --plan-tune-hooks explicitly
-# if you do want them. (Saved prefix/config preferences are still honored.)
-"$GSTACK_LINK/setup" </dev/null
+# consent) would hang the workspace forever. Detaching stdin makes every setup
+# prompt take its smart non-interactive default (flat skill names, etc.).
+#
+# `--plan-tune-hooks=prompt` is load-bearing, not redundant: stdin alone only
+# suppresses the *prompt* branch. A saved `plan_tune_hooks: yes` or an exported
+# GSTACK_PLAN_TUNE_HOOKS=yes would still resolve to "install" and rewrite the
+# user's global ~/.claude/settings.json to point at THIS ephemeral worktree —
+# which breaks once the workspace is deleted. The flag has highest precedence,
+# so it pins resolution to "prompt", and closed stdin then makes prompt-mode a
+# no-op skip (no install, no decline marker). A dev workspace must never mutate
+# global settings.json. To install the hooks, run `./setup --plan-tune-hooks`
+# directly (outside dev-setup). Saved prefix/other config preferences still apply.
+"$GSTACK_LINK/setup" --plan-tune-hooks=prompt </dev/null
 
 echo ""
 echo "Dev mode active. Skills resolve from this working tree."
