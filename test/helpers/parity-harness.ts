@@ -207,7 +207,13 @@ export const PARITY_INVARIANTS: ParityInvariant[] = [
     minBytes: 30_000,
   },
   {
+    // Carved (v2 plan T9): skeleton SKILL.md + sections/*.md. Content checks run
+    // against the union (relocated phrases still count); size floors run against
+    // the union (total behavior preserved); maxSkeletonBytes asserts the
+    // always-loaded skeleton actually shrank from the ~167KB monolith.
     skill: 'ship',
+    sectioned: true,
+    maxSkeletonBytes: 90_000,
     mustContain: [
       'VERSION',
       'CHANGELOG',
@@ -217,7 +223,7 @@ export const PARITY_INVARIANTS: ParityInvariant[] = [
     ],
     mustHaveHeadings: ['## Preamble', '## When to invoke'],
     maxSizeRatio: 1.05,
-    minBytes: 80_000,
+    minBytes: 120_000,
   },
   {
     skill: 'plan-ceo-review',

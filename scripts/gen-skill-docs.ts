@@ -563,17 +563,31 @@ function resolvePlaceholders(
   relTmplPath: string,
 ): string {
   const suppressed = new Set(hostConfig.suppressedResolvers || []);
-  const content = tmplContent.replace(/\{\{(\w+(?::[^}]+)?)\}\}/g, (_match, fullKey) => {
-    const parts = fullKey.split(':');
-    const resolverName = parts[0];
-    const args = parts.slice(1);
-    if (suppressed.has(resolverName)) return '';
-    const entry = RESOLVERS[resolverName];
-    if (!entry) throw new Error(`Unknown placeholder {{${resolverName}}} in ${relTmplPath}`);
-    const { resolve, appliesTo } = unwrapResolver(entry);
-    if (appliesTo && !appliesTo(ctx)) return '';
-    return args.length > 0 ? resolve(ctx, args) : resolve(ctx);
-  });
+  const onePass = (input: string): string =>
+    input.replace(/\{\{(\w+(?::[^}]+)?)\}\}/g, (_match, fullKey) => {
+      const parts = fullKey.split(':');
+      const resolverName = parts[0];
+      const args = parts.slice(1);
+      if (suppressed.has(resolverName)) return '';
+      const entry = RESOLVERS[resolverName];
+      if (!entry) throw new Error(`Unknown placeholder {{${resolverName}}} in ${relTmplPath}`);
+      const { resolve, appliesTo } = unwrapResolver(entry);
+      if (appliesTo && !appliesTo(ctx)) return '';
+      return args.length > 0 ? resolve(ctx, args) : resolve(ctx);
+    });
+
+  // Multi-pass: a resolver may emit content that itself contains {{TOKENS}} — the
+  // {{SECTION:id}} resolver inlines a section template (with its own resolvers)
+  // for non-Claude hosts. .replace() doesn't re-scan inserted text, so loop until
+  // the output stabilizes. Bounded to avoid an infinite loop if a resolver ever
+  // emits its own placeholder; 6 passes is far more nesting than any skill needs.
+  let content = tmplContent;
+  for (let pass = 0; pass < 6; pass++) {
+    const next = onePass(content);
+    if (next === content) break;
+    content = next;
+  }
+
   const remaining = content.match(/\{\{(\w+(?::[^}]+)?)\}\}/g);
   if (remaining) {
     throw new Error(`Unresolved placeholders in ${relTmplPath}: ${remaining.join(', ')}`);
@@ -878,12 +892,14 @@ for (const currentHost of hostsToRun) {
       }
     }
 
-    // ─── Section generation (v2 plan T9) ───────────────────────
-    // On-demand sections/*.md for carved skills. No-op for any skill without a
-    // sections/ dir, so this is inert until a skill is carved. Mirrors the
-    // SKILL.md include/skip host filters (keyed on the owning skill dir) and the
-    // DRY_RUN freshness handling, so sections participate in the freshness gate.
-    for (const sec of discoverSectionTemplates(ROOT)) {
+    // ─── Section generation (v2 plan T9, Claude-first carve) ───
+    // On-demand sections/*.md for carved skills. Generated for CLAUDE ONLY:
+    // every other host inlines section content via the {{SECTION:id}} resolver
+    // (keeping the full monolith skill), so they need no section files and we
+    // sidestep host-portable section paths until that plumbing lands. No-op for
+    // any skill without a sections/ dir. Mirrors the SKILL.md DRY_RUN handling so
+    // sections participate in the freshness gate.
+    for (const sec of currentHost === 'claude' ? discoverSectionTemplates(ROOT) : []) {
       if (currentHostConfig.generation.includeSkills?.length &&
           !currentHostConfig.generation.includeSkills.includes(sec.skillDir)) continue;
       if (currentHostConfig.generation.skipSkills?.length &&

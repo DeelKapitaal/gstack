@@ -34,6 +34,7 @@ import { generateGBrainContextLoad, generateGBrainSaveResults } from './gbrain';
 import { generateQuestionPreferenceCheck, generateQuestionLog, generateInlineTuneFeedback } from './question-tuning';
 import { generateMakePdfSetup } from './make-pdf';
 import { generateTasksSectionEmit, generateTasksSectionAggregate } from './tasks-section';
+import { SECTION, SECTION_INDEX } from './sections';
 
 export const RESOLVERS: Record<string, ResolverValue> = {
   SLUG_EVAL: generateSlugEval,
@@ -92,4 +93,6 @@ export const RESOLVERS: Record<string, ResolverValue> = {
   MAKE_PDF_SETUP: generateMakePdfSetup,
   TASKS_SECTION_EMIT: generateTasksSectionEmit,
   TASKS_SECTION_AGGREGATE: generateTasksSectionAggregate,
+  SECTION,
+  SECTION_INDEX,
 };
