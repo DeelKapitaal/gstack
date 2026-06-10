@@ -41,8 +41,15 @@ afterEach(() => {
 
 describe('gstack-config', () => {
   // ─── get ──────────────────────────────────────────────────
-  test('get on missing file returns empty, exit 0', () => {
+  test('get on missing file returns the default, exit 0', () => {
+    // auto_upgrade has a default of false; get falls back to the defaults table.
     const { exitCode, stdout } = run(['get', 'auto_upgrade']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe('false');
+  });
+
+  test('get unknown key on missing file returns empty, exit 0', () => {
+    const { exitCode, stdout } = run(['get', 'some_unknown_key']);
     expect(exitCode).toBe(0);
     expect(stdout).toBe('');
   });
@@ -110,10 +117,12 @@ describe('gstack-config', () => {
     expect(stdout).toContain('update_check: false');
   });
 
-  test('list on missing file returns empty, exit 0', () => {
+  test('list on missing file shows defaults, exit 0', () => {
+    // list prints the active-values block with defaults for unset keys.
     const { exitCode, stdout } = run(['list']);
     expect(exitCode).toBe(0);
-    expect(stdout).toBe('');
+    expect(stdout).toContain('proactive:');
+    expect(stdout).toContain('(default)');
   });
 
   // ─── usage ────────────────────────────────────────────────
@@ -199,9 +208,9 @@ describe('gstack-config', () => {
   });
 
   // ─── routing_declined ──────────────────────────────────────
-  test('routing_declined defaults to empty (not set)', () => {
+  test('routing_declined defaults to false (not set)', () => {
     const { stdout } = run(['get', 'routing_declined']);
-    expect(stdout).toBe('');
+    expect(stdout).toBe('false');
   });
 
   test('routing_declined can be set and read', () => {
