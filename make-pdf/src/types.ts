@@ -44,6 +44,10 @@ export interface GenerateOptions {
   // Network
   allowNetwork?: boolean;         // default: false
 
+  // Strict mode (eng-review D6.1): missing/remote images hard-fail instead of
+  // warn + placeholder. For CI docs pipelines that need determinism.
+  strict?: boolean;               // default: false
+
   // Metadata
   title?: string;
   author?: string;

@@ -86,6 +86,12 @@ function printUsage(): void {
   lines.push("  --quiet                   Suppress progress on stderr.");
   lines.push("  --verbose                 Per-stage timings on stderr.");
   lines.push("");
+  lines.push("Diagrams & images:");
+  lines.push("  ```mermaid / ```excalidraw fences render as vector diagrams.");
+  lines.push("  Add render=false to a fence info string to keep it as a code block.");
+  lines.push("  Local images are inlined; oversized rasters downscale to print resolution.");
+  lines.push("  --strict                  Missing/remote images fail the run (CI mode).");
+  lines.push("");
   lines.push("Network:");
   lines.push("  --allow-network           Load external images (off by default).");
   lines.push("");
@@ -136,6 +142,7 @@ function generateOptionsFromFlags(parsed: ParsedArgs): GenerateOptions {
     quiet: f.quiet === true,
     verbose: f.verbose === true,
     allowNetwork: f["allow-network"] === true,
+    strict: f.strict === true,
     title: typeof f.title === "string" ? f.title : undefined,
     author: typeof f.author === "string" ? f.author : undefined,
     date: typeof f.date === "string" ? f.date : undefined,

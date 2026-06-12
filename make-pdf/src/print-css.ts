@@ -324,6 +324,18 @@ function figureRules(): string {
     `figure { margin: 12pt 0; }`,
     `figure img { display: block; max-width: 100%; height: auto; }`,
     `figcaption { font-size: 9pt; color: #666; margin-top: 6pt; font-style: italic; }`,
+    // Diagram figures (diagram-prepass): rendered mermaid/excalidraw SVG.
+    // SVGs scale to the content box and never split across pages.
+    `figure.diagram { break-inside: avoid; text-align: center; }`,
+    `figure.diagram > svg { max-width: 100%; height: auto; }`,
+    `figure.diagram .diagram-caption { text-align: center; }`,
+    // Diagnostic block for a fence that failed to render — loud, boxed,
+    // unmistakably an error (never silent raw code).
+    `figure.diagram-error { border: 1.5pt solid #b00020; padding: 8pt 10pt; text-align: left; }`,
+    `figure.diagram-error .diagram-error-title { font-weight: 700; color: #b00020; font-style: normal; margin: 0 0 6pt; }`,
+    `figure.diagram-error .diagram-error-detail { font-size: 8.5pt; white-space: pre-wrap; margin: 0; }`,
+    // Missing local image placeholder (non-strict mode).
+    `.image-missing { display: inline-block; border: 1pt dashed #b00020; color: #b00020; padding: 4pt 8pt; font-size: 9pt; }`,
   ].join("\n");
 }
 

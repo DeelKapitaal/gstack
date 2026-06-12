@@ -24,6 +24,14 @@ import { render } from "./render";
 import type { GenerateOptions, PreviewOptions } from "./types";
 import { ExitCode } from "./types";
 import * as browseClient from "./browseClient";
+import {
+  RenderTab,
+  contentWidthInches,
+  extractDiagramFences,
+  inlineLocalImages,
+  renderFenceSlots,
+  substituteSlots,
+} from "./diagram-prepass";
 
 class ProgressReporter {
   private readonly quiet: boolean;
@@ -80,10 +88,14 @@ export async function generate(opts: GenerateOptions): Promise<string> {
   const markdown = fs.readFileSync(input, "utf8");
   progress.end("Reading markdown");
 
+  // Stage 1.5: diagram pre-pass — extract ```mermaid/```excalidraw fences and
+  // swap in placeholder tokens. Rendering happens after the tab opens below.
+  const extraction = extractDiagramFences(markdown);
+
   // Stage 2: render HTML
   progress.begin("Rendering HTML");
   const rendered = render({
-    markdown,
+    markdown: extraction.markdown,
     title: opts.title,
     author: opts.author,
     date: opts.date,
@@ -99,11 +111,66 @@ export async function generate(opts: GenerateOptions): Promise<string> {
   });
   progress.end("Rendering HTML", `${rendered.meta.wordCount} words`);
 
+  // Stage 2.5: render diagram fences in a dedicated bundle tab, substitute
+  // slots, then inline + probe + (if oversized) downscale local images.
+  // The bundle tab is lazy: image-only documents open it only when a raster
+  // actually needs print-resolution downscaling (eng-review D4).
+  const warn = (msg: string) => {
+    if (!opts.quiet) process.stderr.write(`\r\x1b[K[make-pdf] warning: ${msg}\n`);
+  };
+  let renderTab: RenderTab | null = null;
+  const getRenderTab = (): RenderTab | null => {
+    if (renderTab) return renderTab;
+    try {
+      renderTab = RenderTab.open();
+    } catch (err: any) {
+      warn(`diagram-render tab unavailable: ${String(err?.message ?? err).split("\n")[0]}`);
+      return null;
+    }
+    return renderTab;
+  };
+
+  let finalHtml = rendered.html;
+  try {
+    if (extraction.fences.length > 0) {
+      progress.begin(`Rendering ${extraction.fences.length} diagram(s)`);
+      const tab = getRenderTab();
+      if (tab) {
+        const slots = renderFenceSlots(extraction.fences, tab, warn);
+        finalHtml = substituteSlots(finalHtml, slots);
+      } else {
+        // No bundle/tab: visible diagnostic beats silent raw tokens.
+        const slots = new Map(
+          extraction.fences.map((f) => [
+            f.token,
+            `<figure class="diagram diagram-error" role="img" aria-label="diagram ${f.ordinal} (not rendered)">` +
+            `<figcaption class="diagram-error-title">Diagram not rendered (${f.lang}) — diagram-render bundle unavailable</figcaption></figure>`,
+          ]),
+        );
+        finalHtml = substituteSlots(finalHtml, slots);
+      }
+      progress.end(`Rendering ${extraction.fences.length} diagram(s)`);
+    }
+
+    progress.begin("Inlining images");
+    finalHtml = inlineLocalImages(finalHtml, {
+      inputDir: path.dirname(input),
+      strict: opts.strict === true,
+      allowNetwork: opts.allowNetwork === true,
+      contentWidthIn: contentWidthInches(opts),
+      warn,
+      getTab: getRenderTab,
+    });
+    progress.end("Inlining images");
+  } finally {
+    renderTab?.close();
+  }
+
   // Stage 3: write HTML to a tmp file browse can read
   // (We don't actually write it; we pass inline via --from-file JSON.)
   // But for preview mode and debugging, we still write to tmp.
   const htmlTmp = tmpFile("html");
-  fs.writeFileSync(htmlTmp, rendered.html, "utf8");
+  fs.writeFileSync(htmlTmp, finalHtml, "utf8");
 
   // Stage 4: spin up a dedicated tab, load HTML, (wait for Paged.js if TOC),
   // then emit PDF. Always close the tab.
@@ -114,7 +181,7 @@ export async function generate(opts: GenerateOptions): Promise<string> {
   try {
     progress.begin("Loading HTML into Chromium");
     browseClient.loadHtml({
-      html: rendered.html,
+      html: finalHtml,
       waitUntil: "domcontentloaded",
       tabId,
     });

@@ -269,6 +269,17 @@ export function loadHtml(opts: LoadHtmlOptions): void {
 }
 
 /**
+ * Load an HTML file (already under browse's safe dirs, e.g. /tmp) into a tab
+ * by path. Cheaper than loadHtml for large pages — no JSON payload round-trip;
+ * browse reads the file directly (diagram-render bundle is ~9MB).
+ */
+export function loadHtmlFile(opts: { file: string; tabId: number; waitUntil?: "load" | "domcontentloaded" | "networkidle" }): void {
+  const args = ["load-html", opts.file, "--tab-id", String(opts.tabId)];
+  if (opts.waitUntil) args.push("--wait-until", opts.waitUntil);
+  runBrowse(args);
+}
+
+/**
  * Evaluate a JS expression in a tab. Returns the serialized result as string.
  */
 export function js(opts: JsOptions): string {
