@@ -54,7 +54,9 @@ function git(args: string[]): string {
  */
 function gitStrict(args: string[]): string {
   const r = spawnSync("git", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  if (r.status !== 0 || r.status === null) {
+  // status !== 0 covers BOTH a non-zero exit AND null (process killed by a
+  // signal or maxBuffer overflow — null !== 0 is true).
+  if (r.status !== 0) {
     throw new Error(
       `git ${args[0]} failed (status=${r.status ?? "killed/overflow"}): ${(r.stderr ?? "").slice(0, 300)}`,
     );

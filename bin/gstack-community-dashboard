@@ -57,7 +57,14 @@ WEEKLY="$(echo "$DATA" | grep -o '"weekly_active":[0-9]*' | grep -o '[0-9]*' || 
 CHANGE="$(echo "$DATA" | grep -o '"change_pct":[0-9-]*' | grep -o '[0-9-]*' || echo "0")"
 
 echo "Weekly active installs: ${WEEKLY}"
-if ! printf '%s' "$DATA" | grep -q '"status":"ok"'; then
+# Marker check: jq when available (whitespace/reserialization-proof); grep
+# fallback only matches the compact form the edge function emits today.
+if command -v jq >/dev/null 2>&1; then
+  _MARKER="$(printf '%s' "$DATA" | jq -r '.status // empty' 2>/dev/null)"
+else
+  _MARKER="$(printf '%s' "$DATA" | grep -q '"status":"ok"' && echo ok || true)"
+fi
+if [ "$_MARKER" != "ok" ]; then
   echo "  (unverified — legacy backend response; deploy the latest community-pulse for verified figures)"
 fi
 if [ "$CHANGE" -gt 0 ] 2>/dev/null; then

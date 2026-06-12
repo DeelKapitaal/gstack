@@ -174,7 +174,7 @@ function applyEnv(env: FakeEnv): () => void {
   };
 }
 
-describe("lib/gbrain-local-status — five status cases", () => {
+describe("lib/gbrain-local-status — status classification", () => {
   let env: FakeEnv | null = null;
   let restoreEnv: (() => void) | null = null;
 

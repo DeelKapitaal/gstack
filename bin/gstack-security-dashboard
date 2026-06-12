@@ -110,6 +110,10 @@ TOTAL="$(echo "$DATA" | jq -r '.security.attacks_last_7_days // 0' 2>/dev/null |
 echo "Attacks detected last 7 days: ${TOTAL}"
 if [ "$STATE" = "legacy" ]; then
   echo "  (unverified — legacy backend response; deploy the latest community-pulse for verified figures)"
+elif [ "$(echo "$DATA" | jq -r '.stale // false' 2>/dev/null)" = "true" ]; then
+  # The backend serves its last good snapshot when recompute fails — figures
+  # are real but frozen. Don't present them as current.
+  echo "  (stale snapshot — backend recompute failing; figures may be out of date)"
 elif [ "$TOTAL" = "0" ]; then
   echo "  (No attack attempts reported by the community yet. Good news.)"
 fi

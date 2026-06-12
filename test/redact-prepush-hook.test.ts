@@ -127,6 +127,31 @@ describe("fail closed on unscannable diffs (#1946)", () => {
     const { code } = runHook(`refs/heads/main ${head} refs/heads/main ${head}\n`);
     expect(code).toBe(0);
   });
+
+  test("a diff killed by a signal (null status — the maxBuffer/kill class) BLOCKS", () => {
+    // Stub git: probes delegate to the real git; the diff invocation kills
+    // itself, producing spawnSync status === null. This is the exact branch
+    // gitStrict's docstring names (oversized-diff overflow is delivered the
+    // same way) — pre-landing review flagged it as untested.
+    const realGit = Bun.which("git") || "/usr/bin/git";
+    const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "prepush-stubgit-"));
+    try {
+      const stub = `#!/bin/sh\nif [ "$1" = "diff" ]; then kill -KILL $$; fi\nexec "${realGit}" "$@"\n`;
+      fs.writeFileSync(path.join(stubDir, "git"), stub);
+      fs.chmodSync(path.join(stubDir, "git"), 0o755);
+
+      const base = git(["rev-parse", "HEAD"]);
+      const head = commit("clean.txt", "clean content\n", "clean commit");
+      const { code, stderr } = runHook(`refs/heads/main ${head} refs/heads/main ${base}\n`, {
+        PATH: `${stubDir}:${process.env.PATH}`,
+      });
+      expect(code).toBe(1);
+      expect(stderr).toContain("could not compute the pushed diff");
+      expect(stderr).toContain("GSTACK_REDACT_PREPUSH=skip");
+    } finally {
+      fs.rmSync(stubDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("install UX surfaces (#1946 / eng review D3+D10)", () => {

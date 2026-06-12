@@ -182,6 +182,13 @@ describe("gstack-security-dashboard — never reports fake zeros (#1947)", () =>
     expect(parsed.stale).toBe(true);
   });
 
+  it("stale snapshot is flagged in human mode too — frozen figures never read as current", () => {
+    const staleBody = JSON.stringify({ ...JSON.parse(GOOD_BODY_MARKER), stale: true });
+    const r = run(SEC_BIN, { mode: "ok", body: staleBody });
+    expect(r.stdout).toContain("Attacks detected last 7 days: 3");
+    expect(r.stdout).toContain("stale snapshot");
+  });
+
   it("200 without marker (legacy backend) → figures shown with unverified note", () => {
     const r = run(SEC_BIN, { mode: "ok", body: GOOD_BODY_LEGACY });
     expect(r.stdout).toContain("Attacks detected last 7 days: 3");
@@ -237,5 +244,14 @@ describe("gstack-community-dashboard — never reports fake zeros (#1947)", () =
     const r = run(COMM_BIN, { mode: "ok", body: '{"error":"weird"}' });
     expect(r.stdout).toContain("unknown — backend error (HTTP 200)");
     expect(r.stdout).not.toContain("Weekly active installs:");
+  });
+
+  it("whitespaced marker ('\"status\": \"ok\"') still classified as verified when jq is present", () => {
+    // Pre-landing review: the grep-only marker check was whitespace-sensitive;
+    // a proxy-reserialized body must not be misclassified as legacy.
+    const spaced = GOOD_BODY_MARKER.replace('"status":"ok"', '"status": "ok"');
+    const r = run(COMM_BIN, { mode: "ok", body: spaced });
+    expect(r.stdout).toContain("Weekly active installs: 42");
+    expect(r.stdout).not.toContain("unverified");
   });
 });

@@ -409,6 +409,36 @@ describe("redactFindingSpans — machine-egress masking (#1947)", () => {
     });
     expect(out).toBe("line one\nline two has <REDACTED-github.pat>\nline three");
   });
+
+  // Pre-landing review CRITICAL: pem.private_key and gcp.service_account
+  // capture only the HEADER, not the key material — a span splice would
+  // redact the marker and forward the key body. Marker-only patterns must
+  // drop the whole payload.
+  test("PEM private key → null (header-only span must not forward the key body)", () => {
+    const msg =
+      "deploy failed: -----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----";
+    expect(redactFindingSpans(msg, { repoVisibility: "private" })).toBeNull();
+  });
+
+  test("GCP service-account JSON → null (key body follows the captured marker)", () => {
+    const msg =
+      'config dump: {"private_key_id": "abc123", "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBg..."}';
+    expect(redactFindingSpans(msg, { repoVisibility: "private" })).toBeNull();
+  });
+
+  // Pre-landing review: overlapping spans (a Bearer token that is also a
+  // JWT) must coalesce — independent splices apply stale offsets and can
+  // leave trailing secret bytes or mangled markers.
+  test("overlapping spans (Bearer JWT fires auth.bearer + jwt) never leak and produce clean markers", () => {
+    const jwt = "eyJ" + "a".repeat(20) + ".eyJ" + "b".repeat(20) + "." + "c".repeat(20);
+    const out = redactFindingSpans(`Authorization: Bearer ${jwt}`, { repoVisibility: "private" });
+    expect(out).not.toBeNull();
+    expect(out!).not.toContain("eyJ");
+    expect(out!).not.toContain("aaaa");
+    expect(out!).not.toContain("cccc");
+    // One coalesced, well-formed marker — no truncated fragments.
+    expect(out!).toMatch(/^Authorization: Bearer <REDACTED-[a-z._+]+>$/);
+  });
 });
 
 describe("taxonomy integrity", () => {
