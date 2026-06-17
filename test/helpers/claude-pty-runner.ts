@@ -504,6 +504,9 @@ ${tail}
  *     for plan-eng / plan-design / plan-devex prose AUQ
  *   - 3+ distinct numbered options (1. 2. 3.) at line starts WITHOUT a
  *     `❯<spaces>1.` cursor — typical for autoplan / office-hours prose AUQ
+ *   - 3+ markdown bold-bullet options (`- **label**`) following an
+ *     interrogative line — office-hours renders its mode question this way
+ *     (`> - **Building a startup**`), which has no letter/number marker
  *
  * Used by classifyVisible and runPlanSkillFloorCheck to return outcome='asked'
  * (or auq_observed) instead of letting the harness time out when the model
@@ -547,7 +550,24 @@ export function isProseAUQVisible(visible: string): boolean {
   while ((nm = numberedRe.exec(tail)) !== null) {
     if (nm[1]) numberedHits.add(nm[1]);
   }
-  return numberedHits.size >= 2;
+  if (numberedHits.size >= 2) return true;
+
+  // Pattern 3: markdown bold-bullet option list. office-hours renders its
+  // mode question as `> - **Building a startup**` lines under
+  // --disallowedTools — no letter/number marker, so Patterns 1-2 miss it,
+  // and the model keeps a spinner up so the Haiku judge scores it 'working'
+  // and the run times out despite the question being on screen.
+  // Require both: an interrogative line (the question stem ends in '?') AND
+  // 3+ bold-bullet markers. The bold (`- **`) requirement is what separates
+  // an option list from incidental prose bullets; the line anchor is dropped
+  // because stripAnsi can collapse option lines (see Pattern 1 note), so we
+  // count markers anywhere in the tail. The `❯ 1.` cursor gate above already
+  // excludes a live native list.
+  if (/\?/.test(tail)) {
+    const boldBulletHits = (tail.match(/[-*•]\s+\*\*/g) || []).length;
+    if (boldBulletHits >= 3) return true;
+  }
+  return false;
 }
 
 /**

@@ -291,6 +291,64 @@ This refers to (see option B) above and also to point A) earlier.
     expect(isProseAUQVisible('Just some plain text output from the model.')).toBe(false);
     expect(isProseAUQVisible('')).toBe(false);
   });
+
+  // Pattern 3: markdown bold-bullet options — office-hours renders its mode
+  // question this way under --disallowedTools, with no letter/number marker.
+  test('matches office-hours markdown bold-bullet mode question (Pattern 3)', () => {
+    const sample = `
+> Before we dig in — what's your goal with this?
+>
+> - **Building a startup** (or thinking about it)
+> - **Intrapreneurship** — internal project at a company, need to ship fast
+> - **Hackathon / demo** — time-boxed, need to impress
+> - **Open source / research** — building for a community
+> - **Learning** — teaching yourself to code
+❯
+`;
+    expect(isProseAUQVisible(sample)).toBe(true);
+  });
+
+  test('bold-bullets require a preceding interrogative — no "?" => false', () => {
+    // 3+ bold bullets but no question stem: this is a feature list, not an AUQ.
+    const sample = `
+Here is what shipped:
+- **Faster builds** via caching
+- **Smaller binaries** through tree-shaking
+- **Better errors** with source maps
+`;
+    expect(isProseAUQVisible(sample)).toBe(false);
+  });
+
+  test('a question with fewer than 3 bold bullets stays false (guard)', () => {
+    const sample = `
+Which approach do you prefer?
+- **Option one** is simpler
+- **Option two** is faster
+`;
+    expect(isProseAUQVisible(sample)).toBe(false);
+  });
+
+  test('plain (non-bold) bullets after a question do not trigger Pattern 3', () => {
+    // Only bold bullets count — plain "- text" prose lists are too common.
+    const sample = `
+What should we do about this?
+- run the tests
+- ship the fix
+- file a follow-up
+`;
+    expect(isProseAUQVisible(sample)).toBe(false);
+  });
+
+  test('Pattern 3 still defers to a live native cursor list (❯ 1.)', () => {
+    const sample = `
+> What's your goal?
+❯ 1. **Building a startup**
+  2. **Intrapreneurship**
+  3. **Hackathon**
+`;
+    // The ❯1. cursor gate fires first — native list handling owns this.
+    expect(isProseAUQVisible(sample)).toBe(false);
+  });
 });
 
 describe('classifyVisible (runtime path through the runner classifier)', () => {
