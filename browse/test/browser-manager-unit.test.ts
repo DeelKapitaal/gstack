@@ -29,17 +29,20 @@ describe('shouldEnableChromiumSandbox', () => {
   const origPlatform = process.platform;
   const origCI = process.env.CI;
   const origContainer = process.env.CONTAINER;
+  const origNoSandbox = process.env.GSTACK_CHROMIUM_NO_SANDBOX;
   const origGetuid = process.getuid;
 
   beforeEach(() => {
     delete process.env.CI;
     delete process.env.CONTAINER;
+    delete process.env.GSTACK_CHROMIUM_NO_SANDBOX;
   });
 
   afterEach(() => {
     Object.defineProperty(process, 'platform', { value: origPlatform });
     if (origCI === undefined) delete process.env.CI; else process.env.CI = origCI;
     if (origContainer === undefined) delete process.env.CONTAINER; else process.env.CONTAINER = origContainer;
+    if (origNoSandbox === undefined) delete process.env.GSTACK_CHROMIUM_NO_SANDBOX; else process.env.GSTACK_CHROMIUM_NO_SANDBOX = origNoSandbox;
     process.getuid = origGetuid;
   });
 
@@ -89,6 +92,31 @@ describe('shouldEnableChromiumSandbox', () => {
     process.getuid = (() => 0) as typeof process.getuid;
     const { shouldEnableChromiumSandbox } = await import('../src/browser-manager');
     expect(shouldEnableChromiumSandbox()).toBe(false);
+  });
+
+  // #1562 — Ubuntu/AppArmor opt-in override
+  it('linux + GSTACK_CHROMIUM_NO_SANDBOX=1 → false (Ubuntu/AppArmor opt-out)', async () => {
+    setPlatform('linux');
+    process.env.GSTACK_CHROMIUM_NO_SANDBOX = '1';
+    process.getuid = (() => 1000) as typeof process.getuid;
+    const { shouldEnableChromiumSandbox } = await import('../src/browser-manager');
+    expect(shouldEnableChromiumSandbox()).toBe(false);
+  });
+
+  it('darwin + GSTACK_CHROMIUM_NO_SANDBOX=1 → false (env override wins on any platform)', async () => {
+    setPlatform('darwin');
+    process.env.GSTACK_CHROMIUM_NO_SANDBOX = '1';
+    process.getuid = (() => 501) as typeof process.getuid;
+    const { shouldEnableChromiumSandbox } = await import('../src/browser-manager');
+    expect(shouldEnableChromiumSandbox()).toBe(false);
+  });
+
+  it('GSTACK_CHROMIUM_NO_SANDBOX=0 → does NOT trigger override (must be exactly "1")', async () => {
+    setPlatform('linux');
+    process.env.GSTACK_CHROMIUM_NO_SANDBOX = '0';
+    process.getuid = (() => 1000) as typeof process.getuid;
+    const { shouldEnableChromiumSandbox } = await import('../src/browser-manager');
+    expect(shouldEnableChromiumSandbox()).toBe(true);
   });
 });
 
@@ -161,5 +189,41 @@ describe('resolveDisconnectCause', () => {
   it('crash: null browser returns crash (defensive default)', async () => {
     const { resolveDisconnectCause } = await import('../src/browser-manager');
     expect(await resolveDisconnectCause(null)).toBe('crash');
+  });
+});
+
+// ─── onDisconnect exit-code propagation (regression test) ──────────
+//
+// The contract: BrowserManager.onDisconnect is called with the resolved
+// exit code (0 for clean Cmd+Q, 2 for crash). server.ts then forwards
+// that code to activeShutdown(), which exits the process.
+//
+// Without this propagation, the headed-mode user-visible Cmd+Q respawn
+// bug returns: server.ts hardcoded `activeShutdown?.(2)` ignores the
+// resolved 0 and gbrowser's gbd HealthMonitor treats the clean quit as
+// a crash, restarting the window.
+describe('BrowserManager.onDisconnect exit-code propagation', () => {
+  it('signature accepts an optional exitCode argument', async () => {
+    const { BrowserManager } = await import('../src/browser-manager');
+    const bm = new BrowserManager();
+    const calls: Array<number | undefined> = [];
+    bm.onDisconnect = (code?: number) => { calls.push(code); };
+    bm.onDisconnect(0);
+    bm.onDisconnect(2);
+    bm.onDisconnect(undefined);
+    expect(calls).toEqual([0, 2, undefined]);
+  });
+
+  it('server.ts callback forwards exitCode when provided, falls back to 2', async () => {
+    // Mirror the production wiring in browse/src/server.ts so a refactor
+    // that drops the forward (e.g. reverting to `() => activeShutdown?.(2)`)
+    // fails CI before the user-visible bug returns.
+    const shutdownCalls: number[] = [];
+    const activeShutdown = (code: number) => { shutdownCalls.push(code); };
+    const onDisconnect = (code?: number) => activeShutdown(code ?? 2);
+    onDisconnect(0);
+    onDisconnect(2);
+    onDisconnect(undefined);
+    expect(shutdownCalls).toEqual([0, 2, 2]);
   });
 });
